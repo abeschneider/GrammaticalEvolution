@@ -16,7 +16,7 @@ abstract Individual
 abstract Population
 
 length{T <: Population}(pop::T) = length(pop.individuals)
-getindex{T <: Population}(pop::T, index::Int64) = pop.individuals[index]
+getindex{T <: Population}(pop::T, indices...) = pop.individuals[indices...]
 push!{T <: Population, S <: Individual}(pop::T, ind::S) = push!(pop.individuals, ind)
 
 length{T <: Individual}(ind::T) = length(ind.genome)
@@ -75,14 +75,14 @@ function generate{PopulationType <: Population}(population::PopulationType, top_
 
     # take top %
     top_num::Int64 = floor(length(population)*top_percent)
-    top_performers = population.individuals[1:top_num]
+    top_performers = population[1:top_num]
 
     # create a new population
     genome_size = length(population[1])
     new_population = PopulationType(top_num, genome_size)
 
     # re-populate by mating top performers
-    while length(new_population.individuals) < length(population)
+    while length(new_population) < length(population)
       (i1, i2) = select_two_individuals(top_performers)
       (ind1, ind2) = one_point_crossover(top_performers[i1], top_performers[i2])
       push!(new_population, ind1)
