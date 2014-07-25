@@ -1,12 +1,30 @@
 module GrammaticalEvolution
 
 using EBNF
+import Base.sort!
+import Base.getindex
+import Base.length
+import Base.endof
+import Base.isless
+import Base.push!
 
 export Individual, Population
-export select_two_individuals, one_point_crossover, mutate!
+export select_two_individuals, one_point_crossover, mutate!, generate
+export length, getindex, endof, setindex!, isless
 
 abstract Individual
 abstract Population
+
+length{T <: Population}(pop::T) = length(pop.individuals)
+getindex{T <: Population}(pop::T, index::Int64) = pop.individuals[index]
+push!{T <: Population, S <: Individual}(pop::T, ind::S) = push!(pop.individuals, ind)
+
+length{T <: Individual}(ind::T) = length(ind.genome)
+endof{T <: Individual}(ind::T) = endof(ind.genome)
+getindex{T <: Individual}(ind::T, indices...) = ind.genome[indices...]
+setindex!{T <: Individual}(ind::T, value::Int64, indices) = ind.genome[indices] = value
+isless{T <: Individual}(ind1::T, ind2::T) = ind1.fitness < ind2.fitness
+
 
 function evaluate!{PopulationType <: Population}(pop::PopulationType)
   for i=1:size
@@ -22,7 +40,7 @@ function sort!{PopulationType <: Population}(pop::PopulationType)
   sort!(pop.individuals)
 end
 
-function select_two_individuals{IndividualType <: Individual}(individuals::Array{IndividualType})
+function select_two_individuals{T <: Individual}(individuals::Array{T,1})
   # randomly select two individuals from a population
   while true
     i1 = rand(1:length(individuals))
@@ -46,7 +64,7 @@ end
 function mutate!(ind::Individual, mutation_rate::Float64; max_value=1000)
   for i=1:length(ind)
     if rand() < mutation_rate
-      ind[i] = rand(1, max_value)
+      ind[i] = rand(1:max_value)
     end
   end
 end
@@ -56,24 +74,25 @@ function generate{PopulationType <: Population}(population::PopulationType, top_
     sort!(population)
 
     # take top %
-    top_num = length(population.individuals)*top_percent
+    top_num::Int64 = floor(length(population)*top_percent)
     top_performers = population.individuals[1:top_num]
 
     # create a new population
-    new_population = PopulationType(top_num)
+    genome_size = length(population[1])
+    new_population = PopulationType(top_num, genome_size)
 
     # re-populate by mating top performers
-    while length(new_population.individuals) < size
-      (i1, i2) = select_two_individuals(pop)
-      (ind2, ind2) = one_point_crossover(top_performers)
+    while length(new_population.individuals) < length(population)
+      (i1, i2) = select_two_individuals(top_performers)
+      (ind1, ind2) = one_point_crossover(top_performers[i1], top_performers[i2])
       push!(new_population, ind1)
       push!(new_population, ind2)
     end
 
     # mutate
-    for j=1:size
+    for j=(top_num+1):length(population)
       if rand() < prob_mutation
-        mutate!(new_population.individuals[top_num:end], mutation_rate)
+        mutate!(new_population[j], mutation_rate)
       end
     end
 

@@ -1,8 +1,5 @@
 using GrammaticalEvolution
 using Base.Test
-import Base.getindex
-import Base.length
-import Base.endof
 
 type TestIndividual <: Individual
   genome::Array{Int64, 1}
@@ -16,30 +13,22 @@ type TestIndividual <: Individual
   TestIndividual(genome::Array{Int64, 1}) = new(genome, -1.0)
 end
 
-type TestPopulation{IndividualType <: Individual} <: Population
-  individuals::Array{IndividualType, 1}
+type TestPopulation <: Population
+  individuals::Array{TestIndividual, 1}
 
   function TestPopulation(population_size::Int64, genome_size::Int64)
-    individuals = Array(IndividualType, 0)
+    individuals = Array(TestIndividual, 0)
     for i=1:population_size
-      push!(individuals, IndividualType(genome_size, 1000))
+      push!(individuals, TestIndividual(genome_size, 1000))
     end
 
     return new(individuals)
   end
 end
 
-length(pop::TestPopulation) = length(pop.individuals)
-getindex(pop::TestPopulation, index::Int64) = pop.individuals[index]
-
-length(ind::TestIndividual) = length(ind.genome)
-endof(ind::TestIndividual) = endof(ind.genome)
-getindex(ind::TestIndividual, indices...) = ind.genome[indices...]
-isless(ind1::TestIndividual, ind2::TestIndividual) = ind1.fitness < ind2.fitness
-
 # test creationg of population
-pop = TestPopulation{TestIndividual}(5, 10)
-@test length(pop) == 5
+pop = TestPopulation(50, 10)
+@test length(pop) == 50
 @test length(pop[1]) == 10
 
 # test selecting two individuals
@@ -59,3 +48,22 @@ for i=1:20
   @test g2[1:cross_point-1] == pop[i2].genome[1:cross_point-1]
   @test g2[cross_point:end] == pop[i1].genome[cross_point:end]
 end
+
+# test mutation
+for mutation_rate = 0:0.1:1.0
+  genome = zeros(Int64, 100000)
+  ind = TestIndividual(genome)
+  ind_mutated = TestIndividual(copy(genome))
+  mutate!(ind_mutated, mutation_rate)
+
+  count = 0
+  for i=1:length(ind)
+    count += ind[i] == ind_mutated[i] ? 0 : 1
+  end
+
+  diff = abs(count/length(genome) - mutation_rate)
+  @test diff < 0.01
+end
+
+# test generate
+new_population = generate(pop, 0.1, 0.2, 0.2)
