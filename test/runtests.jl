@@ -26,6 +26,10 @@ type TestPopulation <: Population
   end
 end
 
+function GrammaticalEvolution.evaluate!(ind::TestIndividual)
+  ind.fitness = rand()
+end
+
 # test creationg of population
 pop = TestPopulation(50, 10)
 @test length(pop) == 50
@@ -67,3 +71,35 @@ end
 
 # test generate
 new_population = generate(pop, 0.1, 0.2, 0.2)
+@test length(new_population) == length(pop)
+
+@grammar testgrammar1 begin
+  start = a | b
+  a = "a"
+  b = "b"
+end
+
+pop = TestPopulation(50, 10)
+result = transform(testgrammar1, pop[1])
+@test result == "a" || result == "b"
+
+@grammar testgrammar2 begin
+  start = a + b
+  a = "a"
+  b = "b"
+end
+
+pop = TestPopulation(50, 10)
+result = transform(testgrammar2, pop[1])
+@test result == "ab"
+
+@grammar testgrammar3 begin
+  start = a | b
+  a = "a" + "c"
+  b = "b" + "d"
+end
+
+pop = TestPopulation(50, 10)
+result = transform(testgrammar3, pop[1])
+@test result == "ac" || result == "bd"
+
