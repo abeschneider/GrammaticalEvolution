@@ -1,5 +1,8 @@
+#import GrammaticalEvolution.@grammar, GrammaticalEvolution.transform, GrammaticalEvolution.Individual, GrammaticalEvolution.Population
 using GrammaticalEvolution
 using Base.Test
+#using GrammaticalEvolution.transform
+# include("../src/EBNF.jl")
 
 type TestIndividual <: Individual
   genome::Array{Int64, 1}
@@ -37,16 +40,16 @@ pop = TestPopulation(50, 10)
 
 # test selecting two individuals
 for i=1:20
-  (i1, i2) = select_two_individuals(pop.individuals)
+  (i1, i2) = GrammaticalEvolution.select_two_individuals(pop.individuals)
   @test i1 != i2
   @test i1 <= length(pop)
   @test i2 <= length(pop)
 end
 
 # test crossing over two genomes
-(i1, i2) = select_two_individuals(pop.individuals)
+(i1, i2) = GrammaticalEvolution.select_two_individuals(pop.individuals)
 for i=1:20
-  (g1, g2, cross_point) = one_point_crossover(pop[i1], pop[i2])
+  (g1, g2, cross_point) = GrammaticalEvolution.one_point_crossover(pop[i1], pop[i2])
   @test g1[1:cross_point-1] == pop[i1].genome[1:cross_point-1]
   @test g1[cross_point:end] == pop[i2].genome[cross_point:end]
   @test g2[1:cross_point-1] == pop[i2].genome[1:cross_point-1]
@@ -58,7 +61,7 @@ for mutation_rate = 0:0.1:1.0
   genome = zeros(Int64, 100000)
   ind = TestIndividual(genome)
   ind_mutated = TestIndividual(copy(genome))
-  mutate!(ind_mutated, mutation_rate)
+  GrammaticalEvolution.mutate!(ind_mutated, mutation_rate)
 
   count = 0
   for i=1:length(ind)
@@ -70,7 +73,7 @@ for mutation_rate = 0:0.1:1.0
 end
 
 # test generate
-new_population = generate(pop, 0.1, 0.2, 0.2)
+new_population = GrammaticalEvolution.generate(pop, 0.1, 0.2, 0.2)
 @test length(new_population) == length(pop)
 
 @grammar testgrammar1 begin
@@ -91,7 +94,7 @@ end
 
 pop = TestPopulation(50, 10)
 result = transform(testgrammar2, pop[1])
-@test result == "ab"
+@test result == ["a", "b"]
 
 @grammar testgrammar3 begin
   start = a | b
@@ -101,5 +104,31 @@ end
 
 pop = TestPopulation(50, 10)
 result = transform(testgrammar3, pop[1])
-@test result == "ac" || result == "bd"
+@test result == ["a", "c"] || result == ["b", "d"]
 
+function convert_number(lst)
+  float(join(lst))
+end
+
+srand(42)
+pop = TestPopulation(50, 10)
+@grammar testgrammar4 begin
+  start = number
+  number[convert_number] = digit + '.' + digit
+  digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+end
+
+result = transform(testgrammar4, pop[1])
+@test result == 0.8
+
+plus{T1 <: Number, T2 <: Number}(x::T1, y::T2) = x+y
+
+@grammar testgrammar5 begin
+  start = expr
+  expr = plus(sin(number), cos(number))
+  number[convert_number] = digit + '.' + digit
+  digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+end
+
+result = eval(transform(testgrammar5, pop[1]))
+@test result == 1.457874917923759

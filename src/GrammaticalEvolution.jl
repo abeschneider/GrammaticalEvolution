@@ -12,18 +12,21 @@ export Individual, Population
 export select_two_individuals, one_point_crossover, mutate!, evaluate!, generate, transform
 export length, getindex, endof, setindex!, isless
 
+# include("Rules.jl")
 include("EBNF.jl")
 
-export Grammar, @grammar, Rule, AndRule, OrRule
+export Grammar, @grammar, Rule, AndRule, OrRule, parseGrammar
 
 abstract Individual
 abstract Population
 
+# methods that have to be supported by subclasses of population
 length{T <: Population}(pop::T) = length(pop.individuals)
 getindex{T <: Population}(pop::T, indices...) = pop.individuals[indices...]
 push!{T <: Population, S <: Individual}(pop::T, ind::S) = push!(pop.individuals, ind)
 pop!{T <: Population}(pop::T) = pop!(pop.individuals)
 
+# methods that have to be supported by subclasses of subpopulation
 length{T <: Individual}(ind::T) = length(ind.genome)
 endof{T <: Individual}(ind::T) = endof(ind.genome)
 getindex{T <: Individual}(ind::T, indices...) = ind.genome[indices...]
@@ -134,7 +137,13 @@ end
 function transform(grammar::Grammar, rule::OrRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
   (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
   idx = (ind[pos] % length(rule.values))+1
-  return transform(grammar, rule.values[idx], ind, pos+1, wraps, maxwraps)
+  values = transform(grammar, rule.values[idx], ind, pos+1, wraps, maxwraps)
+
+  if rule.action !== nothing
+    return eval(Expr(:call, rule.action, values))
+  else
+    return values
+  end
 end
 
 function transform(grammar::Grammar, rule::ReferencedRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
@@ -148,12 +157,22 @@ end
 function transform(grammar::Grammar, rule::AndRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
   (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
   values = [transform(grammar, subrule, ind, pos+i, wraps, maxwraps) for (i, subrule) in enumerate(rule.values)]
-  return join(values, "")
+
+  if rule.action !== nothing
+    #return eval(Expr(:call, rule.action, values))
+    return rule.action(values)
+  else
+    return values
+  end
 end
 
-function transform(grammar::Grammar, rule::OneOrMoreRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
+function transform(grammar::Grammar, rule::FunctionRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
   (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
-  # TODO
+  args = [transform(grammar, arg, ind, pos+i, wraps, maxwraps) for (i, arg) in enumerate(rule.args)]
+
+  return Expr(:call, rule.fn, args...)
 end
+
+# TODO: need to define other transforms
 
 end # module
