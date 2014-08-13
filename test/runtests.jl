@@ -1,8 +1,6 @@
-#import GrammaticalEvolution.@grammar, GrammaticalEvolution.transform, GrammaticalEvolution.Individual, GrammaticalEvolution.Population
 using GrammaticalEvolution
+import GrammaticalEvolution.evaluate!
 using Base.Test
-#using GrammaticalEvolution.transform
-# include("../src/EBNF.jl")
 
 type TestIndividual <: Individual
   genome::Array{Int64, 1}
@@ -29,7 +27,7 @@ type TestPopulation <: Population
   end
 end
 
-function GrammaticalEvolution.evaluate!(ind::TestIndividual)
+function evaluate!(ind::TestIndividual)
   ind.fitness = rand()
 end
 
@@ -132,3 +130,11 @@ end
 
 result = eval(transform(testgrammar5, pop[1]))
 @test result == 1.457874917923759
+
+@grammar testgrammar6 begin
+  start = expr
+  expr = cos(number)
+  number[convert_number] = digit + '.' + digit
+  digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+end
+

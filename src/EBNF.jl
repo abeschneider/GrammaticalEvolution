@@ -50,16 +50,20 @@ immutable OrRule <: Rule
   values::Array{Rule}
   action::ActionType
 
-  function OrRule(name::String, left::OrRule, right::OrRule, action)
+  function OrRule(name::String, left::OrRule, right::OrRule, action::ActionType)
     return new(name, vcat(left.values, right.values), action)
   end
 
-  function OrRule(name::String, left::Rule, right::Rule, action)
+  function OrRule(name::String, left::Rule, right::Rule, action::ActionType)
     return new(name, [left, right], action)
   end
 
-  function OrRule(name::String, left::OrRule, right::Terminal, action)
+  function OrRule(name::String, left::OrRule, right::Terminal, action::ActionType)
     return new(name, vcat(left.values, right.value), action)
+  end
+
+  function OrRule{T1, T2}(name::String, left::T1, right::T2, action::ActionType)
+    return new(name, [left, right], action)
   end
 end
 
@@ -128,6 +132,15 @@ immutable FunctionRule <: Rule
   end
 end
 
+immutable ExprRule <: Rule
+  name::String
+  args::Array{Rule}
+
+  function ExprRule(name::String, args::Array{Rule})
+    return new(name, args)
+  end
+end
+
 function show(io::IO, t::Terminal)
   print(io, "$(t.value)");
 end
@@ -190,6 +203,10 @@ function parseDefinition(name::String, symbol::Symbol, action::ActionType)
   return ReferencedRule(name, symbol)
 end
 
+function parseDefinition(name::String, var::QuoteNode, action::ActionType)
+  return var.value
+end
+
 function parseDefinition(name::String, range::UnitRange, action::ActionType)
   values = [Terminal(value) for value in range];
   return OrRule(name, values);
@@ -214,7 +231,6 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
   if ex.args[1] === :|
     left = parseDefinition("$name.1", ex.args[2], nothing)
     right = parseDefinition("$name.2", ex.args[3], nothing)
-    #rules::Array{Rule} = [left, right]
     return OrRule(name, left, right, action)
   elseif ex.args[1] === :+
     # check if this is infix or prefix
@@ -224,7 +240,6 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
       return AndRule(name, values, action)
     else
       # it's prefix, so it maps to one or more rule
-      println("ex = $(ex.args[2])")
       return OneOrMoreRule(parseDefinition(name, ex.args[2], nothing), action)
     end
   elseif ex.args[1] === :* && length(ex.args) == 2
@@ -237,8 +252,16 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
     delim = parseDefinition("$name.delim", ex.args[3], nothing)
     return ListRule(name, entry, delim, action)
   elseif typeof(ex.args[1]) === Symbol
-    args::Array{Rule} = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
-    return FunctionRule(name, ex.args[1], args)
+    if ex.args[1] === :Expr
+      args = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
+      return ExprRule(name, args)
+    else
+      args::Array{Rule} = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
+      println("created FunctionRule: $name, $(ex.args[1]), $args")
+      return FunctionRule(name, ex.args[1], args)
+    end
+  elseif typeof(ex.args[1]) == QuoteNode
+    println("ex = $(ex.head), $(ex.args)")
   end
 
   return EmptyRule()

@@ -12,10 +12,11 @@ export Individual, Population
 export select_two_individuals, one_point_crossover, mutate!, evaluate!, generate, transform
 export length, getindex, endof, setindex!, isless
 
-# include("Rules.jl")
 include("EBNF.jl")
 
 export Grammar, @grammar, Rule, AndRule, OrRule, parseGrammar
+
+type MaxWrapException <: Exception end
 
 abstract Individual
 abstract Population
@@ -32,7 +33,6 @@ endof{T <: Individual}(ind::T) = endof(ind.genome)
 getindex{T <: Individual}(ind::T, indices...) = ind.genome[indices...]
 setindex!{T <: Individual}(ind::T, value::Int64, indices) = ind.genome[indices] = value
 isless{T <: Individual}(ind1::T, ind2::T) = ind1.fitness < ind2.fitness
-
 evaluate(ind::Individual) = nothing
 
 # TODO: this should be distributed
@@ -115,8 +115,6 @@ function generate{PopulationType <: Population}(population::PopulationType, top_
   return new_population
 end
 
-type MaxWrapException <: Exception end
-
 function wrap_position(pos::Int64, l::Int64, wraps::Int64, maxwraps::Int64)
   if pos > l
     wraps += 1
@@ -169,8 +167,14 @@ end
 function transform(grammar::Grammar, rule::FunctionRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
   (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
   args = [transform(grammar, arg, ind, pos+i, wraps, maxwraps) for (i, arg) in enumerate(rule.args)]
-
   return Expr(:call, rule.fn, args...)
+end
+
+function transform(grammar::Grammar, rule::ExprRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
+  (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
+#     println("args = $(rule.args)")
+  args = [transform(grammar, arg, ind, pos+i, wraps, maxwraps) for (i, arg) in enumerate(rule.args)]
+  return Expr(args...)
 end
 
 # TODO: need to define other transforms
