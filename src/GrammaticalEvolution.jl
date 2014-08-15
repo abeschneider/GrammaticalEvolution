@@ -10,7 +10,7 @@ import Base.pop!
 
 export Individual, Population
 export select_two_individuals, one_point_crossover, mutate!, evaluate!, generate, transform
-export length, getindex, endof, setindex!, isless
+export length, getindex, endof, setindex!, isless, genome_iterator
 
 include("EBNF.jl")
 
@@ -115,68 +115,90 @@ function generate{PopulationType <: Population}(population::PopulationType, top_
   return new_population
 end
 
-function wrap_position(pos::Int64, l::Int64, wraps::Int64, maxwraps::Int64)
-  if pos > l
-    wraps += 1
-    pos = 1
+function genome_iterator(size::Int64, maxwraps::Int64)
+  i::Int64 = 1
+  wraps::Int64 = 0
+
+  function next()
+    while true
+      produce(i)
+      i += 1
+
+      if i > size
+        wraps += 1
+        i = 1
+      end
+
+      if wraps > maxwraps
+        throw(maxWrapException())
+      end
+    end
   end
 
-  if wraps > maxwraps
-    throw(MaxWrapException())
-  end
-
-  return (pos, wraps)
+  return Task(next)
 end
 
 function transform(grammar::Grammar, ind::Individual; maxwraps=2)
-  return transform(grammar, grammar.rules[:start], ind, 1, 0, maxwraps)
+  # create stateful iterator 'pos'
+  pos = genome_iterator(length(ind), maxwraps)
+  value = transform(grammar, grammar.rules[:start], ind, pos)
+  return value
 end
 
-function transform(grammar::Grammar, rule::OrRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
-  (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
-  idx = (ind[pos] % length(rule.values))+1
-  values = transform(grammar, rule.values[idx], ind, pos+1, wraps, maxwraps)
+function transform(grammar::Grammar, rule::OrRule, ind::Individual, pos::Task)
+  idx = (ind[consume(pos)] % length(rule.values))+1
+  value = transform(grammar, rule.values[idx], ind, pos)
 
   if rule.action !== nothing
-    return eval(Expr(:call, rule.action, values))
-  else
-    return values
+    value = rule.action(values)
   end
+
+  return value
 end
 
-function transform(grammar::Grammar, rule::ReferencedRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
-  return transform(grammar, grammar.rules[rule.symbol], ind, pos, wraps, maxwraps)
+function transform(grammar::Grammar, rule::ReferencedRule, ind::Individual, pos::Task)
+  return transform(grammar, grammar.rules[rule.symbol], ind, pos)
 end
 
-function transform(grammar::Grammar, rule::Terminal, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
+function transform(grammar::Grammar, rule::Terminal, ind::Individual, pos::Task)
   return rule.value
 end
 
-function transform(grammar::Grammar, rule::AndRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
-  (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
-  values = [transform(grammar, subrule, ind, pos+i, wraps, maxwraps) for (i, subrule) in enumerate(rule.values)]
+function transform(grammar::Grammar, rule::AndRule, ind::Individual, pos::Task)
+  values = [transform(grammar, subrule, ind, pos) for subrule in rule.values]
 
   if rule.action !== nothing
-    #return eval(Expr(:call, rule.action, values))
-    return rule.action(values)
-  else
-    return values
+    values = rule.action(values)
   end
+
+  return values
 end
 
-function transform(grammar::Grammar, rule::FunctionRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
-  (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
-  args = [transform(grammar, arg, ind, pos+i, wraps, maxwraps) for (i, arg) in enumerate(rule.args)]
-  return Expr(:call, rule.fn, args...)
+function transform(grammar::Grammar, sym::Symbol, ind::Individual, pos::Task)
+  return sym
 end
 
-function transform(grammar::Grammar, rule::ExprRule, ind::Individual, pos::Int64, wraps::Int64, maxwraps::Int64)
-  (pos, wraps) = wrap_position(pos, length(ind), wraps, maxwraps)
-#     println("args = $(rule.args)")
-  args = [transform(grammar, arg, ind, pos+i, wraps, maxwraps) for (i, arg) in enumerate(rule.args)]
+function transform(grammar::Grammar, q::QuoteNode, ind::Individual, pos::Task)
+  return q.value
+end
+
+function transform(grammar::Grammar, rule::ExprRule, ind::Individual, pos::Task)
+  args = [transform(grammar, arg, ind, pos) for arg in rule.args]
   return Expr(args...)
 end
 
-# TODO: need to define other transforms
+function transform(grammar::Grammar, rule::ZeroOrMoreRule, ind::Individual, pos::Task)
+  # genome value gives number of time to repeat
+  reps = ind[consume(pos)]
+
+  # invoke given rule reps times
+  values = [transform(grammar, rule.rule, ind, pos) for i=1:reps]
+
+  if rule.action !== nothing
+    values = rule.action(values)
+  end
+
+  return values
+end
 
 end # module

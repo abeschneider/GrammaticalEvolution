@@ -2,13 +2,13 @@ import Base.show
 import Base.convert
 import Base.getindex
 
-# export Grammar, @grammar, @rule, Rule, Terminal, OrRule, AndRule, ReferencedRule, ListRule
-# export OneOrMoreRule, ZeroOrMoreRule, MultipleRule, RegexRule, OptionalRule, show, convert, *, ?, list
-# export addRuleType, displayRuleTypes
-
 abstract Rule
 
 typealias ActionType Union(Function, Nothing)
+
+type Grammar
+  rules::Dict{Symbol, Rule}
+end
 
 immutable Terminal <: Rule
   name::String
@@ -134,9 +134,9 @@ end
 
 immutable ExprRule <: Rule
   name::String
-  args::Array{Rule}
+  args::Array{Any, 1}
 
-  function ExprRule(name::String, args::Array{Rule})
+  function ExprRule(name::String, args::Array{Any, 1})
     return new(name, args)
   end
 end
@@ -181,10 +181,6 @@ end
 function convert{T}(::Type{Rule}, n::UnitRange{T})
   terminals = [Terminal(i) for i=(n.start):(n.stop)];
   return OrRule(terminals);
-end
-
-type Grammar
-  rules::Dict{Symbol, Rule}
 end
 
 function parseDefinition(name::String, value::String, action::ActionType)
@@ -252,16 +248,8 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
     delim = parseDefinition("$name.delim", ex.args[3], nothing)
     return ListRule(name, entry, delim, action)
   elseif typeof(ex.args[1]) === Symbol
-    if ex.args[1] === :Expr
-      args = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
-      return ExprRule(name, args)
-    else
-      args::Array{Rule} = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
-      println("created FunctionRule: $name, $(ex.args[1]), $args")
-      return FunctionRule(name, ex.args[1], args)
-    end
-  elseif typeof(ex.args[1]) == QuoteNode
-    println("ex = $(ex.head), $(ex.args)")
+    args = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
+    return ExprRule(name, args)
   end
 
   return EmptyRule()
