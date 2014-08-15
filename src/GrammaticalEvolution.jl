@@ -133,7 +133,7 @@ function genome_iterator(size::Int64, maxwraps::Int64)
       end
 
       if wraps > maxwraps
-        throw(maxWrapException())
+        throw(MaxWrapException())
       end
     end
   end

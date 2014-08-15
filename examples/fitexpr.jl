@@ -56,7 +56,7 @@ function main()
   grammar = create_grammar()
 
   # create population
-  pop = ExamplePopulation(500, 1000)
+  pop = ExamplePopulation(500, 100)
 
   fitness = Inf
   generation = 1
