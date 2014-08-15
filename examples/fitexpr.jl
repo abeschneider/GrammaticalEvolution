@@ -28,8 +28,6 @@ type ExprPopulation <: Population
 end
 
 convert_number(lst) = float(join(lst))
-plus{T1 <: Number, T2 <: Number}(x::T1, y::T2) = x+y
-mult{T1 <: Number, T2 <: Number}(x::T1, y::T2) = x*y
 
 @grammar expr1 begin
   start = ex
@@ -50,7 +48,8 @@ function evaluate!(ind::ExprIndividual)
   try
     ind.code = transform(expr1, ind)
     @eval fn(x, y) = $(ind.code)
-  catch
+  catch e
+    println("exception = $e")
     ind.fitness = Inf
     return
   end
@@ -58,10 +57,11 @@ function evaluate!(ind::ExprIndividual)
   for x=0:10
     for y=0:10
       value = fn(x, y)
-
-#       println("value = $value, $(gt(x, y))")
-      if !isnan(value)
-        insert!(fitness, length(fitness)+1, sqrt((value - gt(x, y)).^2))
+      diff = (value - gt(x, y)).^2
+      if !isnan(diff) && diff > 0
+        insert!(fitness, length(fitness)+1, sqrt(diff))
+      elseif diff == 0
+        insert!(fitness, length(fitness)+1, 0)
       end
     end
   end
@@ -71,10 +71,14 @@ end
 
 # run the experiment
 pop = ExprPopulation(500, 1000)
-for i=1:10000
+fitness = Inf
+generation = 1
+while fitness > 1.0
   # generate a new population (based off of fitness)
   pop = generate(pop, 0.1, 0.2, 0.2)
 
-  # can safely assume population is sorted
-  println("generation: $i, max fitness=$(pop[1].fitness), code=$(pop[1].code)")
+  # can safely assume population is sorted, so first entry it the best
+  fitness = pop[1].fitness
+  println("generation: $generation, max fitness=$fitness, code=$(pop[1].code)")
+  generation += 1
 end

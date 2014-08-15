@@ -116,20 +116,22 @@ pop = TestPopulation(50, 10)
   digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 end
 
-result = transform(testgrammar4, pop[1])
-@test result == 0.8
+result = transform(testgrammar4, pop[2])
+@test result == 7.5
 
 plus{T1 <: Number, T2 <: Number}(x::T1, y::T2) = x+y
 
 @grammar testgrammar5 begin
   start = expr
-  expr = plus(sin(number), cos(number))
+  expr = Expr(:call, :+, fn1, fn2)
+  fn1 = Expr(:call, :sin, number)
+  fn2 = Expr(:call, :cos, number)
   number[convert_number] = digit + '.' + digit
   digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 end
 
 result = eval(transform(testgrammar5, pop[1]))
-@test result == 1.457874917923759
+@test result == -0.2272020946930871
 
 @grammar testgrammar6 begin
   start = expr
@@ -138,3 +140,33 @@ result = eval(transform(testgrammar5, pop[1]))
   digit = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 end
 
+# TODO: insert test
+
+# TODO: put in test to verify resulting position is correct
+@grammar testgrammar7 begin
+  start = ruleA
+  ruleA = ruleB | ruleC
+  ruleB = 0 | 1 | 2
+  ruleC = 3 | 4 | 5
+end
+
+pos = genome_iterator(length(pop[1]), 2)
+value = transform(testgrammar7, testgrammar7.rules[:start], pop[1], pos)
+lastPos = consume(pos)
+
+@test value == 2
+@test lastPos == 3
+
+@grammar testgrammar8 begin
+  start = lst
+  lst = value + lst | value
+  value = 0 | 1 | 2
+end
+
+
+pos = genome_iterator(length(pop[1]), 2)
+value = transform(testgrammar8, testgrammar8.rules[:start], pop[3], pos)
+lastPos = consume(pos)
+
+@test value == {0, {1, 2}}
+@test lastPos == 7
