@@ -47,8 +47,12 @@ end
 
 immutable OrRule <: Rule
   name::String
-  values::Array{Rule}
+  values::Array{Rule, 1}
   action::ActionType
+
+  function OrRule{T <: Rule}(name::String, rules::Array{T}, action::ActionType)
+    return new(name, rules, action)
+  end
 
   function OrRule(name::String, left::OrRule, right::OrRule, action::ActionType)
     return new(name, vcat(left.values, right.values), action)
@@ -203,11 +207,6 @@ function parseDefinition(name::String, var::QuoteNode, action::ActionType)
   return var.value
 end
 
-function parseDefinition(name::String, range::UnitRange, action::ActionType)
-  values = [Terminal(value) for value in range];
-  return OrRule(name, values);
-end
-
 function parseDefinition(name::String, regex::Regex, action::ActionType)
   # TODO: Need to do this to ensure we always match at the beginning,
   # but there should be a safer way to do this
@@ -250,6 +249,9 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
   elseif typeof(ex.args[1]) === Symbol
     args = [parseDefinition("$name.$i", arg, nothing) for (i, arg) in enumerate(ex.args[2:end])]
     return ExprRule(name, args)
+  elseif ex.head == :(:)
+    # a UnitRange
+    return OrRule(name, [Terminal(value) for value in (ex.args[1]):(ex.args[2])], nothing)
   end
 
   return EmptyRule()

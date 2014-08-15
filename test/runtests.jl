@@ -27,7 +27,7 @@ type TestPopulation <: Population
   end
 end
 
-function evaluate!(ind::TestIndividual)
+function evaluate!(grammar::Grammar, ind::TestIndividual)
   ind.fitness = rand()
 end
 
@@ -71,7 +71,11 @@ for mutation_rate = 0:0.1:1.0
 end
 
 # test generate
-new_population = GrammaticalEvolution.generate(pop, 0.1, 0.2, 0.2)
+@grammar testgrammar0 begin
+  start = nothing
+end
+
+new_population = GrammaticalEvolution.generate(testgrammar0, pop, 0.1, 0.2, 0.2)
 @test length(new_population) == length(pop)
 
 @grammar testgrammar1 begin

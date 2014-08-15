@@ -36,9 +36,9 @@ isless{T <: Individual}(ind1::T, ind2::T) = ind1.fitness < ind2.fitness
 evaluate(ind::Individual) = nothing
 
 # TODO: this should be distributed
-function evaluate!{PopulationType <: Population}(pop::PopulationType)
+function evaluate!{PopulationType <: Population}(grammar::Grammar, pop::PopulationType)
   for i=1:length(pop)
-    evaluate!(pop[i])
+    evaluate!(grammar, pop[i])
   end
 end
 
@@ -75,7 +75,7 @@ function mutate!(ind::Individual, mutation_rate::Float64; max_value=1000)
   end
 end
 
-function generate{PopulationType <: Population}(population::PopulationType, top_percent::Float64, prob_mutation::Float64, mutation_rate::Float64)
+function generate{PopulationType <: Population}(grammar::Grammar, population::PopulationType, top_percent::Float64, prob_mutation::Float64, mutation_rate::Float64)
   # sort population
   sort!(population)
 
@@ -104,7 +104,7 @@ function generate{PopulationType <: Population}(population::PopulationType, top_
 
   # TODO: don't re-evaluate individuals that have already been evaluated
   # evaluate new population and re-sort
-  evaluate!(new_population)
+  evaluate!(grammar, new_population)
   sort!(new_population)
 
   # it's possible that we might have added too many individuals, so trim down if necessary
@@ -115,6 +115,9 @@ function generate{PopulationType <: Population}(population::PopulationType, top_
   return new_population
 end
 
+# stateful iterator that keeps track of its current position, wraps the position
+# when the maximum length is reached, and emits an exception when the maximum
+# number of wraps occurs
 function genome_iterator(size::Int64, maxwraps::Int64)
   i::Int64 = 1
   wraps::Int64 = 0
@@ -122,8 +125,8 @@ function genome_iterator(size::Int64, maxwraps::Int64)
   function next()
     while true
       produce(i)
-      i += 1
 
+      i += 1
       if i > size
         wraps += 1
         i = 1
@@ -139,7 +142,6 @@ function genome_iterator(size::Int64, maxwraps::Int64)
 end
 
 function transform(grammar::Grammar, ind::Individual; maxwraps=2)
-  # create stateful iterator 'pos'
   pos = genome_iterator(length(ind), maxwraps)
   value = transform(grammar, grammar.rules[:start], ind, pos)
   return value
@@ -190,6 +192,25 @@ end
 function transform(grammar::Grammar, rule::ZeroOrMoreRule, ind::Individual, pos::Task)
   # genome value gives number of time to repeat
   reps = ind[consume(pos)]
+
+  # invoke given rule reps times
+  values = [transform(grammar, rule.rule, ind, pos) for i=1:reps]
+
+  if rule.action !== nothing
+    values = rule.action(values)
+  end
+
+  return values
+end
+
+function transform(grammar::Grammar, rule::OneOrMoreRule, ind::Individual, pos::Task)
+  # genome value gives number of time to repeat
+  reps = ind[consume(pos)]
+
+  # enforce that it's at least one
+  if reps == 0
+    reps = 1
+  end
 
   # invoke given rule reps times
   values = [transform(grammar, rule.rule, ind, pos) for i=1:reps]
