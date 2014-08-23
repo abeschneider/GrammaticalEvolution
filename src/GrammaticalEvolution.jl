@@ -11,6 +11,7 @@ import Base.pop!
 export Individual, Population
 export select_two_individuals, one_point_crossover, mutate!, evaluate!, generate, transform
 export length, getindex, endof, setindex!, isless, genome_iterator
+export MaxWrapException
 
 include("EBNF.jl")
 
@@ -27,18 +28,22 @@ getindex{T <: Population}(pop::T, indices...) = pop.individuals[indices...]
 push!{T <: Population, S <: Individual}(pop::T, ind::S) = push!(pop.individuals, ind)
 pop!{T <: Population}(pop::T) = pop!(pop.individuals)
 
-# methods that have to be supported by subclasses of subpopulation
+# methods that have to be supported by subclasses of individuals
 length{T <: Individual}(ind::T) = length(ind.genome)
 endof{T <: Individual}(ind::T) = endof(ind.genome)
 getindex{T <: Individual}(ind::T, indices...) = ind.genome[indices...]
 setindex!{T <: Individual}(ind::T, value::Int64, indices) = ind.genome[indices] = value
 isless{T <: Individual}(ind1::T, ind2::T) = ind1.fitness < ind2.fitness
-evaluate(ind::Individual) = nothing
+getFitness{T <: Individual}(ind::T) = ind.fitness
+# evaluate(ind::Individual) = nothing
+evaluate!{T <: Individual}(grammar::Grammar, ind::T, args...) = nothing
 
 # TODO: this should be distributed
-function evaluate!{PopulationType <: Population}(grammar::Grammar, pop::PopulationType)
+function evaluate!{PopulationType <: Population}(grammar::Grammar, pop::PopulationType, args...)
   for i=1:length(pop)
-    evaluate!(grammar, pop[i])
+    if getFitness(pop[i]) == nothing
+      evaluate!(grammar, pop[i], args...)
+    end
   end
 end
 
@@ -75,11 +80,11 @@ function mutate!(ind::Individual, mutation_rate::Float64; max_value=1000)
   end
 end
 
-function generate{PopulationType <: Population}(grammar::Grammar, population::PopulationType, top_percent::Float64, prob_mutation::Float64, mutation_rate::Float64)
+function generate{PopulationType <: Population}(grammar::Grammar, population::PopulationType, top_percent::Float64, prob_mutation::Float64, mutation_rate::Float64, args...)
   # sort population
   sort!(population)
 
-  # take top %
+  # take top performers for cross-over
   top_num::Int64 = floor(length(population)*top_percent)
   top_performers = population[1:top_num]
 
@@ -95,16 +100,15 @@ function generate{PopulationType <: Population}(grammar::Grammar, population::Po
     push!(new_population, ind2)
   end
 
-  # mutate
+  # mutate newly created population
   for j=(top_num+1):length(population)
     if rand() < prob_mutation
       mutate!(new_population[j], mutation_rate)
     end
   end
 
-  # TODO: don't re-evaluate individuals that have already been evaluated
   # evaluate new population and re-sort
-  evaluate!(grammar, new_population)
+  evaluate!(grammar, new_population, args...)
   sort!(new_population)
 
   # it's possible that we might have added too many individuals, so trim down if necessary
@@ -152,7 +156,18 @@ function transform(grammar::Grammar, rule::OrRule, ind::Individual, pos::Task)
   value = transform(grammar, rule.values[idx], ind, pos)
 
   if rule.action !== nothing
-    value = rule.action(values)
+    value = rule.action(value)
+  end
+
+  return value
+end
+
+function transform(grammar::Grammar, rule::RangeRule, ind::Individual, pos::Task)
+  full_range = (rule.range.stop - rule.range.start)
+  value = (ind[consume(pos)] % length(full_range))+rule.range.start
+
+  if rule.action !== nothing
+    value = rule.action(value)
   end
 
   return value
@@ -189,31 +204,49 @@ function transform(grammar::Grammar, rule::ExprRule, ind::Individual, pos::Task)
   return Expr(args...)
 end
 
-function transform(grammar::Grammar, rule::ZeroOrMoreRule, ind::Individual, pos::Task)
+# It's very unlikely these two methods will be useful -- the maximum size of the genome is arbritrarily high, so
+# you'll likely end up with mostly large numbers
+# function transform(grammar::Grammar, rule::ZeroOrMoreRule, ind::Individual, pos::Task)
+#   # genome value gives number of time to repeat
+#   reps = ind[consume(pos)]
+
+#   # invoke given rule reps times
+#   values = [transform(grammar, rule.rule, ind, pos) for i=1:reps]
+
+#   if rule.action !== nothing
+#     values = rule.action(values)
+#   end
+
+#   return values
+# end
+
+# function transform(grammar::Grammar, rule::OneOrMoreRule, ind::Individual, pos::Task)
+#   # genome value gives number of time to repeat
+#   reps = ind[consume(pos)]
+
+#   # enforce that it's at least one
+#   if reps == 0
+#     reps = 1
+#   end
+
+#   # invoke given rule reps times
+#   values = [transform(grammar, rule.value, ind, pos) for i=1:reps]
+
+#   if rule.action !== nothing
+#     values = rule.action(values)
+#   end
+
+#   return values
+# end
+
+function transform(grammar::Grammar, rule::RepeatedRule, ind::Individual, pos::Task)
   # genome value gives number of time to repeat
   reps = ind[consume(pos)]
+  range = (rule.range.stop - rule.range.start)
+  reps = (reps % range) + rule.range.start
 
   # invoke given rule reps times
-  values = [transform(grammar, rule.rule, ind, pos) for i=1:reps]
-
-  if rule.action !== nothing
-    values = rule.action(values)
-  end
-
-  return values
-end
-
-function transform(grammar::Grammar, rule::OneOrMoreRule, ind::Individual, pos::Task)
-  # genome value gives number of time to repeat
-  reps = ind[consume(pos)]
-
-  # enforce that it's at least one
-  if reps == 0
-    reps = 1
-  end
-
-  # invoke given rule reps times
-  values = [transform(grammar, rule.rule, ind, pos) for i=1:reps]
+  values = [transform(grammar, rule.value, ind, pos) for i=1:reps]
 
   if rule.action !== nothing
     values = rule.action(values)

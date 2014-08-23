@@ -62,8 +62,20 @@ immutable OrRule <: Rule
     return new(name, [left, right], action)
   end
 
+  function OrRule(name::String, left::OrRule, right::Rule, action::ActionType)
+    return new(name, vcat(left.values, right), action)
+  end
+
+  function OrRule(name::String, left::Rule, right::OrRule, action::ActionType)
+    return new(name, vcat(right.values, left), action)
+  end
+
   function OrRule(name::String, left::OrRule, right::Terminal, action::ActionType)
     return new(name, vcat(left.values, right.value), action)
+  end
+
+  function OrRule(name::String, left::Terminal, right::OrRule, action::ActionType)
+    return new(name, vcat(right.values, left.value), action)
   end
 
   function OrRule{T1, T2}(name::String, left::T1, right::T2, action::ActionType)
@@ -75,19 +87,32 @@ immutable OneOrMoreRule <: Rule
   name::String
   value::Rule
   action::ActionType
-
-  function OneOrMoreRule(name::String, value::Rule; action=nothing)
-    return new(name, value, action)
-  end
 end
 
 immutable ZeroOrMoreRule <: Rule
   name::String
   value::Rule
   action::ActionType
+end
 
-  function ZeroOrMoreRule(name::String, value::Rule; action=nothing)
-    return new(name, value, action)
+immutable RangeRule <: Rule
+  name::String
+  range::UnitRange{Int64}
+  action::ActionType
+
+  function RangeRule(name::String, range::UnitRange{Int64}, action::ActionType)
+    return new(name, range, action)
+  end
+end
+
+immutable RepeatedRule <: Rule
+  name::String
+  range::UnitRange{Int64}
+  value::Rule
+  action::ActionType
+
+  function RepeatedRule(name::String, range::RangeRule, value::Rule, action::ActionType)
+    return new(name, range.range, value, action)
   end
 end
 
@@ -235,11 +260,15 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
       return AndRule(name, values, action)
     else
       # it's prefix, so it maps to one or more rule
-      return OneOrMoreRule(parseDefinition(name, ex.args[2], nothing), action)
+      return OneOrMoreRule(name, parseDefinition("$name.1", ex.args[2], nothing), action)
     end
   elseif ex.args[1] === :* && length(ex.args) == 2
     # it's a prefix, so it maps to zero or more rule
-    return ZeroOrMoreRule(parseDefinition(name, ex.args[2], nothing), action)
+    return ZeroOrMoreRule(name, parseDefinition("$name.1", ex.args[2], nothing), action)
+  elseif ex.args[1] == :^
+    rule = ex.args[2]
+    range = ex.args[3]
+    return RepeatedRule(name, parseDefinition("$name.range", range, nothing), parseDefinition("$name.1", rule, nothing), action)
   elseif ex.args[1] == :?
     return OptionalRule(parseDefinition(name, ex.args[2], nothing), action)
   elseif ex.args[1] == :list
@@ -251,9 +280,11 @@ function parseDefinition(name::String, ex::Expr, action::ActionType)
     return ExprRule(name, args)
   elseif ex.head == :(:)
     # a UnitRange
-    return OrRule(name, [Terminal(value) for value in (ex.args[1]):(ex.args[2])], nothing)
+#     return OrRule(name, [Terminal(value) for value in (ex.args[1]):(ex.args[2])], nothing)
+    return RangeRule(name, (ex.args[1]):(ex.args[2]), nothing)
   end
 
+  println("?? $(ex.args)")
   return EmptyRule()
 end
 
