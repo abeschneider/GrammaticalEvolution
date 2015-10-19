@@ -25,15 +25,14 @@ function create_grammar()
   return grammar
 end
 
-
-function evaluate!(grammar::Grammar, ind::ExampleIndividual)
+function GrammaticalEvolution.evaluate!(grammar::Grammar, ind::ExampleIndividual)
   fitness::Array{Float64, 1} = []
 
   try
     ind.code = transform(grammar, ind)
     @eval fn(x, y) = $(ind.code)
   catch e
-    println("exception = $e")
+    # println("exception = $e")
     ind.fitness = Inf
     return
   end
