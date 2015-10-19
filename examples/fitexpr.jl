@@ -1,3 +1,5 @@
+push!(LOAD_PATH, "../src")
+
 using GrammaticalEvolution
 import GrammaticalEvolution.evaluate!
 
@@ -25,7 +27,7 @@ end
 
 
 function evaluate!(grammar::Grammar, ind::ExampleIndividual)
-  fitness::Array{Float64, 1} = {}
+  fitness::Array{Float64, 1} = []
 
   try
     ind.code = transform(grammar, ind)

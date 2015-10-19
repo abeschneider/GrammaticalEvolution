@@ -1,7 +1,9 @@
 module GrammaticalEvolution
 
+import Base.*
 import Base.sort!
 import Base.getindex
+import Base.setindex!
 import Base.length
 import Base.endof
 import Base.isless
