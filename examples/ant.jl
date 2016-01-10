@@ -1,8 +1,12 @@
 # using Grammatical Evolution to solve the Ant problem
+push!(LOAD_PATH, "../src")
+
 using GrammaticalEvolution
 import GrammaticalEvolution.evaluate!
 import GrammaticalEvolution.isless
 import Base.copy
+import Base.+
+import Base.-
 
 const food = convert(Int64, '1')
 const gap = convert(Int64, '0')
@@ -31,7 +35,7 @@ function read_map(s)
         if data[i][j] != startpos
           map[i, j] = convert(Int64, data[i][j])
         else
-          start = {i, j}
+          start = [i, j]
         end
       end
     end
@@ -75,19 +79,24 @@ const west = Direction(4)
 
 type AntIndividual <: Individual
   genome::Array{Int64, 1}
-  fitness::Union(Float64, Nothing)
+  # fitness::Union{Float64, Void}
+  fitness::Float64
   code
 
   function AntIndividual(size::Int64, max_value::Int64)
     genome = rand(1:max_value, size)
-    return new(genome, nothing, nothing)
+    return new(genome, -1, nothing)
   end
 
-  AntIndividual(genome::Array{Int64, 1}) = new(genome, nothing, nothing)
+  AntIndividual(genome::Array{Int64, 1}) = new(genome, -1, nothing)
 end
 
 type AntPopulation <: Population
   individuals::Array{AntIndividual, 1}
+
+  function AntPopulation(individuals::Array{AntIndividual, 1})
+    return new(copy(individuals))
+  end
 
   function AntPopulation(population_size::Int64, genome_size::Int64)
     individuals = Array(AntIndividual, 0)

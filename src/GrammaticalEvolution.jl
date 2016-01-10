@@ -39,7 +39,7 @@ isless{T <: Individual}(ind1::T, ind2::T) = ind1.fitness < ind2.fitness
 getFitness{T <: Individual}(ind::T) = ind.fitness
 # evaluate(ind::Individual) = nothing
 evaluate!{T <: Individual}(grammar::Grammar, ind::T, args...) = nothing
-  
+
 # TODO: this should be distributed
 function evaluate!{PopulationType <: Population}(grammar::Grammar, pop::PopulationType, args...)
   for i=1:length(pop)
@@ -92,7 +92,7 @@ function generate{PopulationType <: Population}(grammar::Grammar, population::Po
 
   # create a new population
   genome_size = length(population[1])
-  new_population = PopulationType(top_num, genome_size)
+  new_population = PopulationType(top_performers)
 
   # re-populate by mating top performers
   while length(new_population) < length(population)

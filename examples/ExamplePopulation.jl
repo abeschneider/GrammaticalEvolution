@@ -22,4 +22,8 @@ type ExamplePopulation <: Population
 
     return new(individuals)
   end
+
+  function ExamplePopulation(individuals::Array{ExampleIndividual, 1})
+    return new(copy(individuals))    
+  end
 end
