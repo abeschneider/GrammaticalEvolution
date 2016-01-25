@@ -244,8 +244,9 @@ function main()
     pop = generate(ant_grammar, pop, 0.1, 0.2, 0.2, world)
 
     # population is sorted, so first entry it the best
-    fitness = pop[1].fitness
-    println("generation: $generation, $(length(pop)), max fitness=$fitness\n$(pop[1].code)")
+    max_fitness = pop[1].fitness
+    min_fitness = pop[length(pop)].fitness
+    println("generation: $generation, $(length(pop)), max fitness=$max_fitness, min fitness=$min_fitness,\n$(pop[1].code)")
     generation += 1
   end
 end
